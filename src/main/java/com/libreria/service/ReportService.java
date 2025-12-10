@@ -1,0 +1,215 @@
+package com.libreria.service;
+
+import com.lowagie.text.*;
+import com.lowagie.text.pdf.PdfPCell;
+import com.lowagie.text.pdf.PdfPTable;
+import com.lowagie.text.pdf.PdfWriter;
+import com.libreria.model.CabeceraVenta;
+import com.libreria.model.DetalleVenta;
+import com.libreria.repository.CabeceraVentaRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.stream.Collectors;
+
+@Service
+public class ReportService {
+
+    @Autowired
+    private CabeceraVentaRepository cabeceraVentaRepository;
+
+    // Existing Management Report (Date Range)
+    public ByteArrayInputStream generateSalesReport(LocalDateTime start, LocalDateTime end) {
+        Document document = new Document();
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+        try {
+            PdfWriter.getInstance(document, out);
+            document.open();
+
+            Font font = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 18);
+            Paragraph title = new Paragraph("Reporte de Ventas General", font);
+            title.setAlignment(Element.ALIGN_CENTER);
+            document.add(title);
+            document.add(new Paragraph(" "));
+
+            // ... (Simple list logic kept for admin purposes) ...
+            // Simplified for brevity in this replace, assuming user wants the boleta
+            // specifically
+
+            PdfPTable table = new PdfPTable(5);
+            table.setWidthPercentage(100);
+            table.setWidths(new int[] { 1, 3, 2, 4, 2 });
+            addTableHeader(table, "ID");
+            addTableHeader(table, "Fecha");
+            addTableHeader(table, "Modo Pago");
+            addTableHeader(table, "Items");
+            addTableHeader(table, "Total");
+
+            List<CabeceraVenta> ventas = cabeceraVentaRepository
+                    .findByFechaHoraBetween(start, end, org.springframework.data.domain.Pageable.unpaged())
+                    .getContent();
+            for (CabeceraVenta venta : ventas) {
+                table.addCell(String.valueOf(venta.getId()));
+                table.addCell(venta.getFechaHora().toString());
+                table.addCell(venta.getModoPago());
+                String itemsSummary = venta.getDetalles().stream()
+                        .map(d -> d.getProducto().getNombre() + " x" + d.getCantidad())
+                        .collect(Collectors.joining(", "));
+                table.addCell(itemsSummary);
+                table.addCell(String.valueOf(venta.getTotalFinal()));
+            }
+            document.add(table);
+            document.close();
+        } catch (DocumentException ex) {
+            throw new RuntimeException("Error generating PDF", ex);
+        }
+        return new ByteArrayInputStream(out.toByteArray());
+    }
+
+    // NEW Single Boleta Report
+    public ByteArrayInputStream generateBoletaPdf(Long id) {
+        CabeceraVenta venta = cabeceraVentaRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Venta no encontrada"));
+
+        // Format for a thermal-printer-like width (approx 80mm ~ 226 points)
+        // new Rectangle(width, height) - height is arbitrary long, can be dynamic but
+        // fixed is easier
+        Rectangle pageSize = new Rectangle(226, 800);
+        Document document = new Document(pageSize, 10, 10, 10, 10); // Custom margins
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+        try {
+            PdfWriter.getInstance(document, out);
+            document.open();
+
+            // Font Styles
+            Font fontBold = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12);
+            Font fontNormal = FontFactory.getFont(FontFactory.HELVETICA, 10);
+            Font fontSmall = FontFactory.getFont(FontFactory.HELVETICA, 8);
+
+            // --- HEADER (Ross&Flor) ---
+            Paragraph companyName = new Paragraph("ROSS & FLOR", FontFactory.getFont(FontFactory.HELVETICA_BOLD, 16));
+            companyName.setAlignment(Element.ALIGN_CENTER);
+            document.add(companyName);
+
+            Paragraph companyInfo = new Paragraph(
+                    "RUC: 20601234567\n" +
+                            "Dirección: Av. Las Flores 123, Lima\n" +
+                            "Telf: 987 654 321 | Correo: contacto@rossflor.com",
+                    fontSmall);
+            companyInfo.setAlignment(Element.ALIGN_CENTER);
+            document.add(companyInfo);
+
+            document.add(new Paragraph("------------------------------------------------------------------"));
+
+            Paragraph boletaTitle = new Paragraph("BOLETA DE VENTA ELECTRÓNICA", fontBold);
+            boletaTitle.setAlignment(Element.ALIGN_CENTER);
+            document.add(boletaTitle);
+
+            Paragraph boletaId = new Paragraph("B001 - " + String.format("%08d", venta.getId()), fontBold);
+            boletaId.setAlignment(Element.ALIGN_CENTER);
+            document.add(boletaId);
+
+            document.add(new Paragraph(" ")); // Spacer
+
+            // --- CLIENT INFO (Placeholder) ---
+            Paragraph clientInfo = new Paragraph(
+                    "CLIENTE: CLIENTE GENERICO\n" +
+                            "DNI: 00000000\n" +
+                            "FECHA: " + venta.getFechaHora().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss")),
+                    fontNormal);
+            document.add(clientInfo);
+
+            document.add(new Paragraph(" "));
+
+            // --- ITEMS TABLE ---
+            PdfPTable table = new PdfPTable(4); // Cant, Desc, P.Unit, Total
+            table.setWidthPercentage(100);
+            table.setWidths(new float[] { 1, 4, 2, 2 });
+
+            // Table Headers
+            PdfPCell c1 = new PdfPCell(new Phrase("CANT", fontBold));
+            c1.setBorder(Rectangle.BOTTOM);
+            table.addCell(c1);
+            PdfPCell c2 = new PdfPCell(new Phrase("DESCRIPCION", fontBold));
+            c2.setBorder(Rectangle.BOTTOM);
+            table.addCell(c2);
+            PdfPCell c3 = new PdfPCell(new Phrase("P.UNIT", fontBold));
+            c3.setBorder(Rectangle.BOTTOM);
+            table.addCell(c3);
+            PdfPCell c4 = new PdfPCell(new Phrase("TOTAL", fontBold));
+            c4.setBorder(Rectangle.BOTTOM);
+            table.addCell(c4);
+
+            // Table Body
+            for (DetalleVenta det : venta.getDetalles()) {
+                PdfPCell cell;
+
+                cell = new PdfPCell(new Phrase(String.valueOf(det.getCantidad()), fontNormal));
+                cell.setBorder(Rectangle.NO_BORDER);
+                table.addCell(cell);
+                cell = new PdfPCell(new Phrase(det.getProducto().getNombre(), fontNormal));
+                cell.setBorder(Rectangle.NO_BORDER);
+                table.addCell(cell);
+                cell = new PdfPCell(new Phrase(String.format("%.2f", det.getPrecioUnitario()), fontNormal));
+                cell.setBorder(Rectangle.NO_BORDER);
+                table.addCell(cell);
+                cell = new PdfPCell(new Phrase(String.format("%.2f", det.getSubtotal()), fontNormal));
+                cell.setBorder(Rectangle.NO_BORDER);
+                table.addCell(cell);
+            }
+            document.add(table);
+
+            document.add(new Paragraph("------------------------------------------------------------------"));
+
+            // --- TOTALS ---
+            PdfPTable totalsTable = new PdfPTable(2);
+            totalsTable.setWidthPercentage(40);
+            totalsTable.setHorizontalAlignment(Element.ALIGN_RIGHT);
+
+            totalsTable.addCell(new PdfPCell(new Phrase("OP. GRAVADA:", fontNormal)));
+            totalsTable.addCell(
+                    new PdfPCell(new Phrase("S/ " + String.format("%.2f", venta.getTotalFinal() / 1.18), fontNormal)));
+
+            totalsTable.addCell(new PdfPCell(new Phrase("I.G.V. (18%):", fontNormal)));
+            totalsTable.addCell(new PdfPCell(
+                    new Phrase("S/ " + String.format("%.2f", venta.getTotalFinal() - (venta.getTotalFinal() / 1.18)),
+                            fontNormal)));
+
+            PdfPCell totalLabel = new PdfPCell(new Phrase("TOTAL A PAGAR:", fontBold));
+            totalLabel.setBorder(Rectangle.TOP);
+            totalsTable.addCell(totalLabel);
+
+            PdfPCell totalValue = new PdfPCell(
+                    new Phrase("S/ " + String.format("%.2f", venta.getTotalFinal()), fontBold));
+            totalValue.setBorder(Rectangle.TOP);
+            totalsTable.addCell(totalValue);
+
+            document.add(totalsTable);
+
+            // Footer
+            document.add(new Paragraph(" "));
+            Paragraph footer = new Paragraph("GRACIAS POR SU COMPRA\nForma de Pago: " + venta.getModoPago(), fontSmall);
+            footer.setAlignment(Element.ALIGN_CENTER);
+            document.add(footer);
+
+            document.close();
+        } catch (DocumentException ex) {
+            throw new RuntimeException("Error generating Boleta PDF", ex);
+        }
+        return new ByteArrayInputStream(out.toByteArray());
+    }
+
+    private void addTableHeader(PdfPTable table, String headerTitle) {
+        PdfPCell header = new PdfPCell();
+        header.setBackgroundColor(java.awt.Color.LIGHT_GRAY);
+        header.setPhrase(new Phrase(headerTitle));
+        table.addCell(header);
+    }
+}
