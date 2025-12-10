@@ -37,6 +37,7 @@ public class ProductService {
         producto.setNombre(productoDetails.getNombre());
         producto.setPrecioUnitario(productoDetails.getPrecioUnitario());
         producto.setStockActual(productoDetails.getStockActual());
+        producto.setCategoria(productoDetails.getCategoria());
         return productoRepository.save(producto);
     }
 
