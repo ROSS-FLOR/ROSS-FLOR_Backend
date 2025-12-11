@@ -212,4 +212,69 @@ public class ReportService {
         header.setPhrase(new Phrase(headerTitle));
         table.addCell(header);
     }
+
+    public ByteArrayInputStream generateSalesExcel(LocalDateTime start, LocalDateTime end) {
+        try (org.apache.poi.ss.usermodel.Workbook workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook();
+                ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+
+            org.apache.poi.ss.usermodel.Sheet sheet = workbook.createSheet("Ventas");
+
+            // Header Style
+            org.apache.poi.ss.usermodel.CellStyle headerStyle = workbook.createCellStyle();
+            org.apache.poi.ss.usermodel.Font headerFont = workbook.createFont();
+            headerFont.setBold(true);
+            headerStyle.setFont(headerFont);
+
+            // Data Style (Date and Currency)
+            org.apache.poi.ss.usermodel.CellStyle dateStyle = workbook.createCellStyle();
+            dateStyle.setDataFormat(workbook.createDataFormat().getFormat("dd/MM/yyyy HH:mm"));
+
+            org.apache.poi.ss.usermodel.CellStyle currencyStyle = workbook.createCellStyle();
+            currencyStyle.setDataFormat(workbook.createDataFormat().getFormat("S/#,##0.00"));
+
+            // Headers
+            org.apache.poi.ss.usermodel.Row headerRow = sheet.createRow(0);
+            String[] headers = { "ID", "Fecha", "Cliente", "Total", "Método de Pago" };
+            for (int i = 0; i < headers.length; i++) {
+                org.apache.poi.ss.usermodel.Cell cell = headerRow.createCell(i);
+                cell.setCellValue(headers[i]);
+                cell.setCellStyle(headerStyle);
+            }
+
+            // Data
+            List<CabeceraVenta> ventas = cabeceraVentaRepository.findByFechaHoraBetween(
+                    start != null ? start : LocalDateTime.of(2000, 1, 1, 0, 0),
+                    end != null ? end : LocalDateTime.now(),
+                    org.springframework.data.domain.Pageable.unpaged()).getContent();
+
+            int rowIdx = 1;
+            for (CabeceraVenta venta : ventas) {
+                org.apache.poi.ss.usermodel.Row row = sheet.createRow(rowIdx++);
+
+                row.createCell(0).setCellValue(venta.getId());
+
+                org.apache.poi.ss.usermodel.Cell dateCell = row.createCell(1);
+                dateCell.setCellValue(venta.getFechaHora());
+                dateCell.setCellStyle(dateStyle);
+
+                row.createCell(2).setCellValue("N/A"); // Cliente not available in entity
+
+                org.apache.poi.ss.usermodel.Cell totalCell = row.createCell(3);
+                totalCell.setCellValue(venta.getTotalFinal());
+                totalCell.setCellStyle(currencyStyle);
+
+                row.createCell(4).setCellValue(venta.getModoPago());
+            }
+
+            // Auto-size columns
+            for (int i = 0; i < headers.length; i++) {
+                sheet.autoSizeColumn(i);
+            }
+
+            workbook.write(out);
+            return new ByteArrayInputStream(out.toByteArray());
+        } catch (Exception e) {
+            throw new RuntimeException("Error generating Excel report", e);
+        }
+    }
 }
