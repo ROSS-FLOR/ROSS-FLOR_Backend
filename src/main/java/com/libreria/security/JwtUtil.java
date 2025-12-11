@@ -24,7 +24,7 @@ public class JwtUtil {
     private String secret;
 
     @Value("${jwt.expiration}")
-    private Long expiration;
+    private int expirationDays;
 
     private Key getSigningKey() {
         // If the secret is short, Keys.hmacShaKeyFor might fail.
@@ -39,11 +39,13 @@ public class JwtUtil {
     }
 
     private String createToken(Map<String, Object> claims, String subject) {
+        var issuedAt = new Date();
+        var expiration = org.apache.commons.lang3.time.DateUtils.addDays(issuedAt, expirationDays);
         return Jwts.builder()
                 .setClaims(claims)
                 .setSubject(subject)
-                .setIssuedAt(new Date(System.currentTimeMillis()))
-                .setExpiration(new Date(System.currentTimeMillis() + expiration))
+                .setIssuedAt(issuedAt)
+                .setExpiration(expiration)
                 .signWith(getSigningKey(), SignatureAlgorithm.HS256)
                 .compact();
     }
