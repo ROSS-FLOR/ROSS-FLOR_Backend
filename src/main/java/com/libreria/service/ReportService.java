@@ -24,6 +24,7 @@ public class ReportService {
     private CabeceraVentaRepository cabeceraVentaRepository;
 
     // Existing Management Report (Date Range)
+    // Existing Management Report (Date Range)
     public ByteArrayInputStream generateSalesReport(LocalDateTime start, LocalDateTime end) {
         Document document = new Document();
         ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -32,16 +33,50 @@ public class ReportService {
             PdfWriter.getInstance(document, out);
             document.open();
 
-            Font font = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 18);
-            Paragraph title = new Paragraph("Reporte de Ventas General", font);
+            // Title
+            Font titleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 18);
+            Paragraph title = new Paragraph("Reporte de Ventas General", titleFont);
             title.setAlignment(Element.ALIGN_CENTER);
             document.add(title);
+
+            // Date Range Header
+            Font subtitleFont = FontFactory.getFont(FontFactory.HELVETICA, 12);
+            String dateRangeText;
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+            if (start != null && end != null) {
+                dateRangeText = "Periodo del Reporte: " + start.format(formatter) + " - " + end.format(formatter);
+            } else {
+                dateRangeText = "Periodo del Reporte: Histórico Completo";
+            }
+
+            Paragraph period = new Paragraph(dateRangeText, subtitleFont);
+            period.setAlignment(Element.ALIGN_CENTER);
+            period.setSpacingAfter(10);
+            document.add(period);
+
             document.add(new Paragraph(" "));
 
-            // ... (Simple list logic kept for admin purposes) ...
-            // Simplified for brevity in this replace, assuming user wants the boleta
-            // specifically
+            // Fetch Data
+            List<CabeceraVenta> ventas = cabeceraVentaRepository
+                    .findByFechaHoraBetween(
+                            start != null ? start : LocalDateTime.of(2000, 1, 1, 0, 0),
+                            end != null ? end : LocalDateTime.now(),
+                            org.springframework.data.domain.Pageable.unpaged())
+                    .getContent();
 
+            // Calculate Total
+            double totalSales = ventas.stream().mapToDouble(CabeceraVenta::getTotalFinal).sum();
+
+            // Total Summary (Top Right or just below Period)
+            Font totalFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12);
+            Paragraph totalSummary = new Paragraph(
+                    "Venta Total en el Periodo: S/. " + String.format("%,.2f", totalSales), totalFont);
+            totalSummary.setAlignment(Element.ALIGN_RIGHT);
+            totalSummary.setSpacingAfter(20);
+            document.add(totalSummary);
+
+            // Table
             PdfPTable table = new PdfPTable(5);
             table.setWidthPercentage(100);
             table.setWidths(new int[] { 1, 3, 2, 4, 2 });
@@ -51,18 +86,15 @@ public class ReportService {
             addTableHeader(table, "Items");
             addTableHeader(table, "Total");
 
-            List<CabeceraVenta> ventas = cabeceraVentaRepository
-                    .findByFechaHoraBetween(start, end, org.springframework.data.domain.Pageable.unpaged())
-                    .getContent();
             for (CabeceraVenta venta : ventas) {
                 table.addCell(String.valueOf(venta.getId()));
-                table.addCell(venta.getFechaHora().toString());
+                table.addCell(venta.getFechaHora().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")));
                 table.addCell(venta.getModoPago());
                 String itemsSummary = venta.getDetalles().stream()
                         .map(d -> d.getProducto().getNombre() + " x" + d.getCantidad())
                         .collect(Collectors.joining(", "));
                 table.addCell(itemsSummary);
-                table.addCell(String.valueOf(venta.getTotalFinal()));
+                table.addCell("S/. " + String.format("%,.2f", venta.getTotalFinal()));
             }
             document.add(table);
             document.close();

@@ -22,6 +22,12 @@ public class CabeceraVenta {
     @Column(name = "total_final", nullable = false)
     private Double totalFinal;
 
+    @Column(name = "cadena_qr", length = 500)
+    private String cadenaQR;
+
+    @Column(name = "valor_resumen")
+    private String valorResumen;
+
     @OneToMany(mappedBy = "cabeceraVenta", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<DetalleVenta> detalles = new ArrayList<>();
 
@@ -66,6 +72,22 @@ public class CabeceraVenta {
 
     public void setTotalFinal(Double totalFinal) {
         this.totalFinal = totalFinal;
+    }
+
+    public String getCadenaQR() {
+        return cadenaQR;
+    }
+
+    public void setCadenaQR(String cadenaQR) {
+        this.cadenaQR = cadenaQR;
+    }
+
+    public String getValorResumen() {
+        return valorResumen;
+    }
+
+    public void setValorResumen(String valorResumen) {
+        this.valorResumen = valorResumen;
     }
 
     public List<DetalleVenta> getDetalles() {

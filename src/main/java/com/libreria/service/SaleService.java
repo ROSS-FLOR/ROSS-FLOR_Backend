@@ -16,6 +16,10 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.time.format.DateTimeFormatter;
+import java.util.Base64;
 
 @Service
 public class SaleService {
@@ -58,15 +62,49 @@ public class SaleService {
             double subtotal = producto.getPrecioUnitario() * itemDto.getCantidad();
             detalle.setSubtotal(subtotal);
 
-            // Link to Header
+            // ... (Existing calculation loop) ...
             cabecera.addDetalle(detalle);
-
             totalFinal += subtotal;
         }
 
         cabecera.setTotalFinal(totalFinal);
 
-        // 5. Save all (Cascade should save details)
+        // --- SUNAT QR & Hash Logic ---
+        // 1. Generate QR String (Pipe separated)
+        // Format:
+        // RUC|TIPO_DOC|SERIE|NUMERO|MTO_IGV|MTO_TOTAL|FECHA|TIPO_DOC_CLIENTE|NUM_DOC_CLIENTE
+        // Note: Using dummy RUC and IDs for this demo as we don't have them in
+        // request/db
+        String rucEmisor = "20601234567";
+        String tipoDoc = "03"; // Boleta
+        String serie = "B001";
+        // Convert ID to number (ID is generated AFTER save, but we need it here?
+        // Actually, we can't have the ID before saving if it's Identity.
+        // Option 1: Save first, then update. Option 2: Use timestamp or UUID.
+        // For compliance simulation, we will save first to get ID, then update QR.
+        cabecera = cabeceraVentaRepository.save(cabecera);
+
+        String numero = String.format("%08d", cabecera.getId());
+        double mtoIgv = totalFinal - (totalFinal / 1.18);
+        String fecha = cabecera.getFechaHora().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+
+        String cadenaQR = String.format("%s|%s|%s|%s|%.2f|%.2f|%s|%s|%s",
+                rucEmisor, tipoDoc, serie, numero, mtoIgv, totalFinal, fecha,
+                "1", "00000000"); // Dummy client data
+
+        cabecera.setCadenaQR(cadenaQR);
+
+        // 2. Generate Hash (Valor Resumen) - SHA-256 of cadenaQR
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(cadenaQR.getBytes(StandardCharsets.UTF_8));
+            String valorResumen = Base64.getEncoder().encodeToString(hash);
+            cabecera.setValorResumen(valorResumen);
+        } catch (Exception e) {
+            throw new RuntimeException("Error generating hash", e);
+        }
+
+        // Save again with QR and Hash
         return cabeceraVentaRepository.save(cabecera);
     }
 
