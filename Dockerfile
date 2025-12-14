@@ -4,7 +4,9 @@ COPY pom.xml .
 COPY src ./src
 RUN mvn clean package -DskipTests
 
-FROM openjdk:17-jdk-slim
+# CAMBIO: Usamos 'openjdk:17-jre-slim' para la etapa de runtime.
+# JRE es más pequeño que JDK, lo que resulta en un contenedor más ligero.
+FROM openjdk:17-jre-slim
 WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar
 EXPOSE 8080
