@@ -13,7 +13,7 @@ public class Producto {
     @Column(nullable = false)
     private String nombre;
 
-    @Column(name = "stock_actual", nullable = false)
+    @org.hibernate.annotations.Formula("(COALESCE((SELECT SUM(ii.cantidad) FROM ingreso_inventario ii WHERE ii.producto_id = id), 0) - COALESCE((SELECT SUM(dv.cantidad) FROM detalle_ventas dv WHERE dv.id_producto_fk = id), 0))")
     private Integer stockActual;
 
     @Column(name = "precio_unitario", nullable = false)
@@ -51,9 +51,7 @@ public class Producto {
         return stockActual;
     }
 
-    public void setStockActual(Integer stockActual) {
-        this.stockActual = stockActual;
-    }
+    // Setter removed as stock is calculated
 
     public Double getPrecioUnitario() {
         return precioUnitario;

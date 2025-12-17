@@ -36,7 +36,8 @@ public class ProductService {
                 .orElseThrow(() -> new RuntimeException("Product not found"));
         producto.setNombre(productoDetails.getNombre());
         producto.setPrecioUnitario(productoDetails.getPrecioUnitario());
-        producto.setStockActual(productoDetails.getStockActual());
+        // producto.setStockActual(productoDetails.getStockActual()); // Stock is
+        // calculated, cannot be updated manually
         producto.setCategoria(productoDetails.getCategoria());
         return productoRepository.save(producto);
     }

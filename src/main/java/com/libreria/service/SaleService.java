@@ -50,9 +50,9 @@ public class SaleService {
                 throw new RuntimeException("Stock insuficiente para el producto: " + producto.getNombre());
             }
 
-            // 3. Update Stock
-            producto.setStockActual(producto.getStockActual() - itemDto.getCantidad());
-            productoRepository.save(producto);
+            // 3. Update Stock - REMOVED (Stock is calculated by Formula)
+            // productoRepository.save(producto); // No need to save product if only stock
+            // changed
 
             // 4. Create Detail
             DetalleVenta detalle = new DetalleVenta();
